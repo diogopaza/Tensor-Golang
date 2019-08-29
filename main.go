@@ -1,15 +1,22 @@
 package main
 
-import "fmt"
+import (
+	"log"
+	"net"
+	"net/http"
+	"net/rpc"
+)
 
 type Item struct {
 	title string
 	body  string
 }
 
+type API int
+
 var database []Item
 
-func GetByName(title string) Item {
+func (a *API) GetByName(title string, reply *Item) error {
 
 	var getItem Item
 
@@ -19,28 +26,31 @@ func GetByName(title string) Item {
 		}
 
 	}
-	return getItem
-}
+	*reply = getItem
+	return nil
 
-func AddItem(item Item) Item {
+}
+func (a *API) AddItem(item Item, reply *Item) error {
 	database = append(database, item)
-	return item
+	*reply = item
+	return nil
 }
 
-func EditItem(title string, edit Item) Item {
+func (a *API) EditItem(edit Item, reply *Item) error {
 	var changed Item
 
 	for idx, val := range database {
 		if val.title == edit.title {
 			database[idx] = edit
-			changed = edit
+			changed = database[idx]
 		}
 	}
-	return changed
+	*reply = changed
+	return nil
 
 }
 
-func DeleteItem(item Item) Item {
+func (a *API) DeleteItem(item Item, reply *Item) error {
 	var del Item
 
 	for idx, val := range database {
@@ -51,31 +61,53 @@ func DeleteItem(item Item) Item {
 		}
 
 	}
-	return del
+	*reply = del
+	return nil
 
 }
 
 func main() {
 
-	fmt.Println("initial database: ", database)
-	a := Item{"first", "a test item"}
-	b := Item{"second", "a second item"}
-	c := Item{"third", "a third item"}
+	var api = new(API)
+	err := rpc.Register(api)
+	if err != nil {
+		log.Fatal("error registering API", err)
+	}
+	rpc.HandleHTTP()
 
-	AddItem(a)
-	AddItem(b)
-	AddItem(c)
+	listener, err := net.Listen("tcp", ":4040")
+	if err != nil {
+		log.Fatal("listening error", err)
+	}
 
-	fmt.Println("second database: ", database)
+	log.Printf("serving rpc on port %d", 4040)
+	err = http.Serve(listener, nil)
+	if err != nil {
+		log.Fatal("error serving", err)
+	}
 
-	DeleteItem(b)
-	fmt.Println("third database: ", database)
+	
 
-	EditItem("third", Item{"fourth", "a n ew item"})
+	/*
+		fmt.Println("initial database: ", database)
+		a := Item{"first", "a test item"}
+		b := Item{"second", "a second item"}
+		c := Item{"third", "a third item"}
 
-	x := GetByName("fourth")
-	y := GetByName("first")
+		AddItem(a)
+		AddItem(b)
+		AddItem(c)
 
-	fmt.Println(x, y)
+		fmt.Println("second database: ", database)
 
+		DeleteItem(b)
+		fmt.Println("third database: ", database)
+
+		EditItem("third", Item{"fourth", "a new item"})
+
+		x := GetByName("fourth")
+		y := GetByName("first")
+
+		fmt.Println(x, y)
+	*/
 }
